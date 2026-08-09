@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aimos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aimos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aimos_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aimos_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aimos_user} -d ${POSTGRES_DB:-aimos_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aimos_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aimos_user}:${POSTGRES_PASSWORD:-aimos_password}@postgres:5432/${POSTGRES_DB:-aimos_db}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
