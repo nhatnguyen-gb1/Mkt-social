@@ -24,6 +24,7 @@ from app.api.routes import (
     market_research,
     product_strategy,
     lead_qualification,
+    calls,
 )
 from app.services.worker_service import WorkerService
 from app.services.telegram_polling_service import TelegramPollingService
@@ -106,6 +107,7 @@ app.include_router(marketing_lead.router, prefix=settings.API_V1_STR)
 app.include_router(market_research.router)
 app.include_router(product_strategy.router)
 app.include_router(lead_qualification.router)
+app.include_router(calls.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")
