@@ -43,6 +43,10 @@ class TurnResponse:
     interrupted: bool = False
 
 
+from app.core.calling.cost import CostGuard
+from app.core.calling.providers.factory import ProviderFactory
+
+
 class ConversationController:
     """Core AI controller for multi-turn real estate call conversations."""
 
@@ -54,13 +58,15 @@ class ConversationController:
         event_logger: Optional[EventLogger] = None,
         handoff_manager: Optional[HandoffManager] = None,
         safety_manager: Optional[SafetyManager] = None,
+        cost_guard: Optional[CostGuard] = None,
     ):
-        self.decision_provider = decision_provider or MockDecisionProvider()
-        self.stt_provider = stt_provider or MockSTTProvider()
-        self.tts_provider = tts_provider or MockTTSProvider()
+        self.stt_provider = stt_provider or ProviderFactory.get_stt_provider()[0]
+        self.decision_provider = decision_provider or ProviderFactory.get_decision_provider()[0]
+        self.tts_provider = tts_provider or ProviderFactory.get_tts_provider()[0]
         self.event_logger = event_logger or EventLogger()
         self.handoff_manager = handoff_manager or HandoffManager()
         self.safety_manager = safety_manager or SafetyManager()
+        self.cost_guard = cost_guard or CostGuard()
 
     def process_customer_turn(
         self,
@@ -88,8 +94,40 @@ class ConversationController:
                 payload={"text": customer_text},
             )
 
+        # Accumulate STT usage into CostTracker
+        stt_duration = stt_result.get("duration_seconds", round(len(customer_text) * 0.15, 2))
+        tracker = self.cost_guard.get_tracker(session.call_id)
+        tracker.add_stt_usage(stt_duration)
+
         # 2. Add customer turn to session
         session.add_turn("CUSTOMER", customer_text, {"interrupted": is_interruption})
+
+        # 2b. Evaluate Cost Guard
+        cost_res = self.cost_guard.evaluate(session.call_id)
+        if cost_res.exceeded:
+            ai_response_text = "Dạ cuộc gọi đã đạt giới hạn thời gian tư vấn. Em xin phép chuyển máy cho chuyên viên để hỗ trợ trực tiếp ạ."
+            tts_res = self.tts_provider.synthesize(ai_response_text)
+            session.add_turn("AGENT", ai_response_text, {"cost_limit_override": True})
+
+            handoff = self.handoff_manager.create_handoff(
+                session, reason=f"BUDGET_GUARD_TRIGGER: {cost_res.reason}"
+            )
+            self.event_logger.log_event(
+                call_id=session.call_id,
+                session_id=session.session_id,
+                event_type=EventType.HANDOFF_READY,
+                payload={"cost_guard": cost_res.to_dict(), "handoff": handoff.to_dict()},
+            )
+
+            return TurnResponse(
+                action=ControllerAction.HANDOFF,
+                ai_text=ai_response_text,
+                tts_payload=tts_res,
+                qualification_snapshot=session.qualification_state,
+                safety_result={"triggered": True, "reason": cost_res.limit_type, "explanation": cost_res.reason},
+                handoff_brief=handoff.to_dict(),
+                interrupted=is_interruption,
+            )
 
         # 3. Safety Check
         safety_res = self.safety_manager.evaluate_turn(customer_text, stt_result.get("confidence", 1.0))

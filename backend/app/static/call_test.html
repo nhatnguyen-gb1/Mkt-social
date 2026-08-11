@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIMOS - Web Voice Call AI Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --card-bg: rgba(19, 26, 42, 0.75);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-purple: #8b5cf6;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --accent-amber: #f59e0b;
+            --text-main: #f3f4f6;
+            --text-sub: #9ca3af;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: #070a12;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(11, 15, 25, 0.8);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+        }
+
+        .logo-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #93c5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            padding: 0.35rem 0.85rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 380px 1fr 360px;
+            gap: 1.5rem;
+        }
+
+        /* CARD STYLES */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            backdrop-filter: blur(16px);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: #e5e7eb;
+        }
+
+        /* LEFT PANEL: CALL CONTROLS */
+        .phone-display {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .phone-label {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            margin-bottom: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .phone-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 1.2rem;
+            font-weight: 700;
+            outline: none;
+        }
+
+        .call-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            padding: 0.9rem 1.2rem;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+        }
+        .btn-start:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4); }
+
+        .btn-end {
+            background: linear-gradient(135deg, #f43f5e, #e11d48);
+            color: white;
+            box-shadow: 0 4px 16px rgba(244, 63, 94, 0.3);
+        }
+        .btn-end:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(244, 63, 94, 0.4); }
+
+        .btn-interrupt {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+        .btn-interrupt:hover { background: rgba(245, 158, 11, 0.25); }
+
+        .mic-box {
+            margin-top: auto;
+            padding: 1.2rem;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 16px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            text-align: center;
+        }
+
+        .mic-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.2);
+            border: 2px solid var(--accent-blue);
+            color: #60a5fa;
+            font-size: 1.5rem;
+            margin: 0 auto 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .mic-btn.recording {
+            background: rgba(244, 63, 94, 0.3);
+            border-color: #f43f5e;
+            color: #fda4af;
+            animation: pulse-mic 1.2s infinite;
+        }
+
+        @keyframes pulse-mic {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+            50% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(244, 63, 94, 0); }
+        }
+
+        /* MIDDLE PANEL: CHAT & AUDIO WAVE */
+        .wave-container {
+            height: 60px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 0 1rem;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 12px;
+            background: var(--accent-blue);
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
+
+        .wave-container.active .wave-bar {
+            animation: wave-anim 1s infinite ease-in-out;
+        }
+
+        .wave-bar:nth-child(1) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.5s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(8) { animation-delay: 0.2s; }
+
+        @keyframes wave-anim {
+            0%, 100% { height: 10px; }
+            50% { height: 40px; background: var(--accent-cyan); }
+        }
+
+        .chat-timeline {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding-right: 0.5rem;
+            max-height: 480px;
+        }
+
+        .chat-bubble {
+            max-width: 80%;
+            padding: 1rem 1.2rem;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .chat-agent {
+            align-self: flex-start;
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-customer {
+            align-self: flex-end;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(139, 92, 246, 0.3));
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-speaker {
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            color: var(--text-sub);
+        }
+
+        .text-input-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.8rem 1rem;
+            color: #fff;
+            outline: none;
+        }
+
+        /* RIGHT PANEL: QUALIFICATION ENGINE & HANDOFF */
+        .info-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 0.4rem;
+        }
+
+        .score-pill {
+            font-size: 1.4rem;
+            font-weight: 800;
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .fields-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.6rem 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+
+        .field-name { color: var(--text-sub); font-weight: 500; }
+        .field-val { font-weight: 600; color: #34d399; }
+        .field-unknown { color: #6b7280; font-style: italic; }
+
+        .handoff-box {
+            margin-top: auto;
+            padding: 1rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 14px;
+            display: none;
+        }
+
+        .handoff-box.active { display: block; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-group">
+            <div class="logo-icon">AI</div>
+            <div class="logo-title">AIMOS Realtime Voice Call Portal</div>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span>LIVE Safety Gate Active</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- LEFT: CALL CONTROL -->
+        <div class="glass-card">
+            <div class="card-header">
+                <span>📞 Controls & Dialpad</span>
+            </div>
+
+            <div class="phone-display">
+                <div class="phone-label">Số điện thoại khách hàng (Allowlisted)</div>
+                <input type="text" id="phoneInput" class="phone-input" value="+84853631921">
+            </div>
+
+            <div class="call-actions">
+                <button id="btnStartCall" class="btn btn-start" onclick="startCall()">
+                    ▶ Bắt đầu cuộc gọi (+84853631921)
+                </button>
+                <button id="btnEndCall" class="btn btn-end" onclick="endCall()" disabled style="opacity: 0.5;">
+                    ⏹ Kết thúc cuộc gọi
+                </button>
+                <button id="btnInterrupt" class="btn btn-interrupt" onclick="interruptCall()" disabled style="opacity: 0.5;">
+                    ⚡ Ngắt lời AI (Interruption)
+                </button>
+            </div>
+
+            <div class="mic-box">
+                <div id="micBtn" class="mic-btn" onclick="toggleMicrophone()">🎙️</div>
+                <div id="micStatus" style="font-size: 0.85rem; color: var(--text-sub);">Bấm mic để nói trực tiếp tiếng Việt</div>
+            </div>
+        </div>
+
+        <!-- MIDDLE: CONVERSATION TIMELINE & WAVE -->
+        <div class="glass-card">
+            <div class="card-header">
+                <span>🗣️ Live Audio & Dialogue Stream</span>
+            </div>
+
+            <div id="waveBox" class="wave-container">
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+                <div class="wave-bar"></div>
+            </div>
+
+            <div id="chatTimeline" class="chat-timeline">
+                <div class="chat-bubble chat-agent">
+                    <div class="chat-speaker">🤖 AI CALLAGENT</div>
+                    <div>Dạ em chào anh/chị ạ! Em là tư vấn viên từ dự án BĐS AIMOS. Không biết anh/chị đang có nhu cầu tìm mua căn hộ để ở hay đầu tư ạ?</div>
+                </div>
+            </div>
+
+            <div class="text-input-bar">
+                <input type="text" id="manualInput" class="chat-input" placeholder="Hoặc gõ câu trả lời của bạn tại đây..." onkeypress="handleKeyPress(event)">
+                <button class="btn btn-start" onclick="sendTurnText()" style="padding: 0.8rem 1.2rem;">Gửi ➔</button>
+            </div>
+        </div>
+
+        <!-- RIGHT: QUALIFICATION ENGINE & HANDOFF BRIEF -->
+        <div class="glass-card">
+            <div class="card-header">
+                <span>📊 Qualification Engine Status</span>
+            </div>
+
+            <div class="info-group">
+                <div class="info-label">Phân loại Lead (Classification)</div>
+                <div id="qualClass" class="score-pill">WARM LEAD</div>
+            </div>
+
+            <div class="info-group">
+                <div class="info-label">Trạng thái khách hàng (Customer State)</div>
+                <div id="customerState" style="font-weight: 700; color: #f59e0b;">ENGAGED</div>
+            </div>
+
+            <div class="info-group">
+                <div class="info-label">Dữ liệu Nhu cầu Đã Thu Thập (Stated Facts)</div>
+                <div class="fields-grid">
+                    <div class="field-row"><span class="field-name">Ngân sách (Budget):</span><span id="f_budget" class="field-unknown">Chưa rõ</span></div>
+                    <div class="field-row"><span class="field-name">Khu vực (Location):</span><span id="f_location" class="field-unknown">Chưa rõ</span></div>
+                    <div class="field-row"><span class="field-name">Thời gian (Timeline):</span><span id="f_timeline" class="field-unknown">Chưa rõ</span></div>
+                    <div class="field-row"><span class="field-name">Tài chính (Financing):</span><span id="f_financing" class="field-unknown">Chưa rõ</span></div>
+                    <div class="field-row"><span class="field-name">Mục đích (Purpose):</span><span id="f_purpose" class="field-unknown">Chưa rõ</span></div>
+                </div>
+            </div>
+
+            <div id="handoffBox" class="handoff-box">
+                <div style="font-weight: 700; color: #10b981; margin-bottom: 0.3rem;">✅ SALES HANDOFF READY</div>
+                <div id="handoffMsg" style="font-size: 0.8rem; color: #d1fae5;">Lead đã đủ điều kiện chuyển giao cho Sales Team.</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentCallId = null;
+        let isRecording = false;
+        let recognition = null;
+
+        // Initialize Speech Recognition if supported
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRec();
+            recognition.lang = 'vi-VN';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                document.getElementById('manualInput').value = text;
+                toggleMicrophone();
+                sendTurnText();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event);
+                toggleMicrophone();
+            };
+
+            recognition.onend = () => {
+                if (isRecording) toggleMicrophone();
+            };
+        }
+
+        let currentAudioPlayer = null;
+
+        async function speakText(text, audioBase64 = null) {
+            if (currentAudioPlayer) {
+                currentAudioPlayer.pause();
+                currentAudioPlayer = null;
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+
+            let b64 = audioBase64;
+            if (!b64) {
+                try {
+                    const res = await fetch('/api/v1/providers/tts/synthesize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: text })
+                    });
+                    const data = await res.json();
+                    b64 = data.audio_base64;
+                } catch (err) {
+                    console.error('Error fetching Edge-TTS audio:', err);
+                }
+            }
+
+            if (b64) {
+                try {
+                    const audio = new Audio(`data:audio/mp3;base64,${b64}`);
+                    currentAudioPlayer = audio;
+                    document.getElementById('waveBox').classList.add('active');
+                    audio.onended = () => {
+                        document.getElementById('waveBox').classList.remove('active');
+                    };
+                    audio.onerror = () => {
+                        document.getElementById('waveBox').classList.remove('active');
+                    };
+                    await audio.play();
+                } catch (err) {
+                    console.error('Error playing Edge-TTS audio player:', err);
+                    document.getElementById('waveBox').classList.remove('active');
+                }
+            } else {
+                console.warn('No audio_base64 available for Edge-TTS synthesis');
+                document.getElementById('waveBox').classList.remove('active');
+            }
+        }
+
+        async function startCall() {
+            const phone = document.getElementById('phoneInput').value;
+            try {
+                // Step 1: Create Call Record
+                const createRes = await fetch('/api/v1/calls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phone, lead_id: 'lead_web_test' })
+                });
+                const createData = await createRes.json();
+                currentCallId = createData.call_id;
+
+                // Step 2: Start Call
+                await fetch(`/api/v1/calls/${currentCallId}/start`, { method: 'POST' });
+
+                document.getElementById('btnStartCall').disabled = true;
+                document.getElementById('btnStartCall').style.opacity = '0.5';
+                document.getElementById('btnEndCall').disabled = false;
+                document.getElementById('btnEndCall').style.opacity = '1';
+                document.getElementById('btnInterrupt').disabled = false;
+                document.getElementById('btnInterrupt').style.opacity = '1';
+
+                const openingText = "Dạ em chào anh/chị ạ! Em là tư vấn viên từ dự án BĐS AIMOS. Không biết anh/chị đang có nhu cầu tìm mua căn hộ để ở hay đầu tư ạ?";
+                appendBubble('AGENT', openingText);
+                await speakText(openingText);
+            } catch (err) {
+                alert('Lỗi khởi tạo cuộc gọi: ' + err.message);
+            }
+        }
+
+        async function sendTurnText() {
+            const input = document.getElementById('manualInput');
+            const text = input.value.trim();
+            if (!text || !currentCallId) return;
+
+            // Add Customer Chat Bubble
+            appendBubble('CUSTOMER', text);
+            input.value = '';
+
+            try {
+                const res = await fetch(`/api/v1/calls/${currentCallId}/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+
+                // Add Agent Chat Bubble
+                appendBubble('AGENT', data.ai_text);
+                const audioB64 = data.tts_payload ? data.tts_payload.audio_base64 : null;
+                speakText(data.ai_text, audioB64);
+
+                // Update Qualification Panel
+                updateQualificationUI(data);
+
+                if (data.action === 'HANDOFF') {
+                    document.getElementById('handoffBox').classList.add('active');
+                }
+            } catch (err) {
+                console.error('Error processing turn:', err);
+            }
+        }
+
+        async function interruptCall() {
+            if (!currentCallId) return;
+            if (currentAudioPlayer) {
+                currentAudioPlayer.pause();
+                currentAudioPlayer = null;
+            }
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            document.getElementById('waveBox').classList.remove('active');
+            appendBubble('CUSTOMER', '[Ngắt lời AI: "Khoan em ơi cho anh hỏi dự án ở đâu?"]');
+
+            const res = await fetch(`/api/v1/calls/${currentCallId}/interrupt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'Khoan em ơi cho anh hỏi vị trí dự án ở đâu?' })
+            });
+            const data = await res.json();
+            appendBubble('AGENT', data.ai_text);
+            const audioB64 = data.tts_payload ? data.tts_payload.audio_base64 : null;
+            speakText(data.ai_text, audioB64);
+            updateQualificationUI(data);
+        }
+
+        async function endCall() {
+            if (!currentCallId) return;
+            window.speechSynthesis.cancel();
+            await fetch(`/api/v1/calls/${currentCallId}/end`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'USER_ENDED' })
+            });
+
+            document.getElementById('btnStartCall').disabled = false;
+            document.getElementById('btnStartCall').style.opacity = '1';
+            document.getElementById('btnEndCall').disabled = true;
+            document.getElementById('btnEndCall').style.opacity = '0.5';
+            document.getElementById('btnInterrupt').disabled = true;
+            document.getElementById('btnInterrupt').style.opacity = '0.5';
+
+            appendBubble('AGENT', '[Cuộc gọi đã kết thúc]');
+            currentCallId = null;
+        }
+
+        function toggleMicrophone() {
+            if (!recognition) {
+                alert('Trình duyệt của bạn không hỗ trợ Web Speech API. Vui lòng gõ chữ ở ô nhập tin nhắn.');
+                return;
+            }
+            const micBtn = document.getElementById('micBtn');
+            const micStatus = document.getElementById('micStatus');
+
+            if (!isRecording) {
+                recognition.start();
+                isRecording = true;
+                micBtn.classList.add('recording');
+                micStatus.innerText = 'Đang lắng nghe giọng nói tiếng Việt của bạn...';
+            } else {
+                recognition.stop();
+                isRecording = false;
+                micBtn.classList.remove('recording');
+                micStatus.innerText = 'Bấm mic để nói trực tiếp tiếng Việt';
+            }
+        }
+
+        function appendBubble(speaker, text) {
+            const timeline = document.getElementById('chatTimeline');
+            const bubble = document.createElement('div');
+            bubble.className = `chat-bubble ${speaker === 'AGENT' ? 'chat-agent' : 'chat-customer'}`;
+            bubble.innerHTML = `<div class="chat-speaker">${speaker === 'AGENT' ? '🤖 AI CALLAGENT' : '👤 KHÁCH HÀNG (+84853631921)'}</div><div>${text}</div>`;
+            timeline.appendChild(bubble);
+            timeline.scrollTop = timeline.scrollHeight;
+        }
+
+        function updateQualificationUI(data) {
+            if (data.qualification_snapshot) {
+                const snap = data.qualification_snapshot;
+                if (snap.classification) {
+                    const el = document.getElementById('qualClass');
+                    el.innerText = snap.classification + ' LEAD';
+                    if (snap.classification === 'HOT') {
+                        el.style.background = 'rgba(239, 68, 68, 0.2)';
+                        el.style.color = '#f87171';
+                    }
+                }
+
+                if (snap.extracted_fields) {
+                    const fields = snap.extracted_fields;
+                    updateField('f_budget', fields.budget);
+                    updateField('f_location', fields.location);
+                    updateField('f_timeline', fields.timeline);
+                    updateField('f_financing', fields.financing);
+                    updateField('f_purpose', fields.purpose);
+                }
+            }
+        }
+
+        function updateField(id, item) {
+            const el = document.getElementById(id);
+            if (item && item.normalized_value) {
+                el.innerText = item.normalized_value;
+                el.className = 'field-val';
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendTurnText();
+        }
+    </script>
+</body>
+</html>

@@ -101,6 +101,7 @@ app.include_router(approvals.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(workflows.router, prefix=settings.API_V1_STR)
 app.include_router(providers.router, prefix=settings.API_V1_STR)
+app.include_router(providers.system_router, prefix=settings.API_V1_STR)
 app.include_router(ecommerce.router, prefix=settings.API_V1_STR)
 app.include_router(skills.router, prefix=settings.API_V1_STR)
 app.include_router(marketing_lead.router, prefix=settings.API_V1_STR)
@@ -110,6 +111,16 @@ app.include_router(lead_qualification.router)
 app.include_router(calls.router, prefix=settings.API_V1_STR)
 
 
+from fastapi.responses import FileResponse
+import os
+
+
+@app.get("/call-test")
+async def call_test_ui():
+    html_path = os.path.join(os.path.dirname(__file__), "static", "call_test.html")
+    return FileResponse(html_path)
+
+
 @app.get("/")
 async def root():
     return {
@@ -117,5 +128,6 @@ async def root():
         "version": "0.9.6",
         "docs": "/docs",
         "health": "/health",
+        "web_voice_call_ui": "/call-test",
         "telegram_bot_enabled": settings.is_telegram_enabled(),
     }

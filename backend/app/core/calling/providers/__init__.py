@@ -11,12 +11,15 @@ from .telephony import (
     AndroidProvider,
 )
 from .stt import STTProvider, MockSTTProvider, RealSTTProvider
-from .tts import TTSProvider, MockTTSProvider, RealTTSProvider
+from .tts import TTSProvider, MockTTSProvider, RealTTSProvider, EdgeTTSProvider
 from .llm import DecisionProvider, MockDecisionProvider, RealLLMDecisionProvider
+from .factory import ProviderFactory
 
 __all__ = [
+    "ProviderFactory",
     "TelephonyProvider",
     "MockTelephonyProvider",
+    "RealTelephonyProvider",
     "TelephonyStatus",
     "TwilioProvider",
     "TelnyxProvider",

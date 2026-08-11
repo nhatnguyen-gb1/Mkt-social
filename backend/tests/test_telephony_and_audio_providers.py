@@ -58,7 +58,7 @@ def test_mock_stt_provider():
 
 def test_real_stt_contract_stub():
     stt = RealSTTProvider()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises((NotImplementedError, ValueError)):
         stt.transcribe("audio")
 
 
@@ -69,9 +69,11 @@ def test_mock_tts_provider():
     assert "MOCK_AUDIO" in res["mock_audio_stream"]
 
 
-def test_real_tts_contract_stub():
+def test_real_tts_contract_stub(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ELEVENLABS_API_KEY", None)
     tts = RealTTSProvider()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises((NotImplementedError, ValueError)):
         tts.synthesize("text")
 
 

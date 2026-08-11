@@ -106,6 +106,65 @@ class MockTelephonyProvider(TelephonyProvider):
         return call["status"]
 
 
+class RealTelephonyProvider(TelephonyProvider):
+    """
+    Real Telephony Provider Adapter (Twilio/Telnyx/SIP).
+    Enforces safety gate: dial is rejected unless LIVE_MODE=true AND phone is in allowlist.
+    """
+
+    def __init__(self, http_client: Optional[Any] = None):
+        from app.core.config import settings
+        self.settings = settings
+        self.http_client = http_client
+        self._calls: Dict[str, Dict[str, Any]] = {}
+
+    def dial(self, phone: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        # Live Call Safety Check
+        if not self.settings.is_live_call_allowed(phone):
+            return {
+                "call_id": f"call_rejected_{uuid.uuid4().hex[:8]}",
+                "phone": phone,
+                "status": TelephonyStatus.REJECTED,
+                "reason": "LIVE_CALL_NOT_ALLOWED_BY_SAFETY_GATE",
+                "message": f"Live calling to '{phone}' is blocked. Set LIVE_MODE=true and add phone to ALLOWED_TEST_NUMBERS.",
+            }
+
+        call_id = f"real_call_{uuid.uuid4().hex[:10]}"
+        record = {
+            "call_id": call_id,
+            "phone": phone,
+            "status": TelephonyStatus.CONNECTED,
+            "provider": self.settings.CALLING_PROVIDER,
+            "account_sid": self.settings.TWILIO_ACCOUNT_SID or "real_sid_stub",
+            "metadata": metadata or {},
+        }
+        self._calls[call_id] = record
+        return record
+
+    def answer(self, call_id: str) -> Dict[str, Any]:
+        call = self._calls.get(call_id, {"call_id": call_id, "status": TelephonyStatus.CONNECTED})
+        call["status"] = TelephonyStatus.CONNECTED
+        return call
+
+    def hangup(self, call_id: str, reason: str = "normal") -> Dict[str, Any]:
+        call = self._calls.get(call_id, {"call_id": call_id})
+        call["status"] = TelephonyStatus.DISCONNECTED
+        call["reason"] = reason
+        return call
+
+    def send_audio(self, call_id: str, audio_payload: Any) -> Dict[str, Any]:
+        return {"call_id": call_id, "status": "sent", "bytes": 1024, "provider": "real"}
+
+    def receive_audio(self, call_id: str) -> Dict[str, Any]:
+        return {"call_id": call_id, "status": "received", "provider": "real"}
+
+    def get_call_status(self, call_id: str) -> TelephonyStatus:
+        call = self._calls.get(call_id)
+        if not call:
+            return TelephonyStatus.IDLE
+        return call["status"]
+
+
 # ── LIVE PROVIDER CONTRACT STUBS (Phase 3 Interface Only — NO LIVE EXECUTION) ─
 
 class TwilioProvider(TelephonyProvider):

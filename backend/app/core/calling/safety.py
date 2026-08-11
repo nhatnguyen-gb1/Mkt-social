@@ -13,6 +13,7 @@ class SafetyReason(str, Enum):
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
     LEGAL_COMPLAINT = "LEGAL_COMPLAINT"
     POLICY_SENSITIVE = "POLICY_SENSITIVE"
+    REJECT_LIVE_CALL = "REJECT_LIVE_CALL"
     UNKNOWN_RISK = "UNKNOWN_RISK"
 
 
@@ -96,4 +97,27 @@ class SafetyManager:
             reason=None,
             confidence=1.0,
             explanation="Turn passed safety verification.",
+        )
+
+    def verify_live_mode_safety(self, phone: str) -> SafetyCheckResult:
+        from app.core.config import settings
+        if not settings.LIVE_MODE:
+            return SafetyCheckResult(
+                triggered=True,
+                reason=SafetyReason.REJECT_LIVE_CALL,
+                confidence=1.0,
+                explanation="LIVE_MODE is set to FALSE. Real call is blocked by safety gate.",
+            )
+        if not settings.is_live_call_allowed(phone):
+            return SafetyCheckResult(
+                triggered=True,
+                reason=SafetyReason.REJECT_LIVE_CALL,
+                confidence=1.0,
+                explanation=f"Phone '{phone}' is NOT in ALLOWED_TEST_NUMBERS allowlist. Real call blocked.",
+            )
+        return SafetyCheckResult(
+            triggered=False,
+            reason=None,
+            confidence=1.0,
+            explanation=f"Live call to '{phone}' permitted by safety gate.",
         )

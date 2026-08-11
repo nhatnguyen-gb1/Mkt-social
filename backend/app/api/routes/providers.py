@@ -1,42 +1,139 @@
+"""
+providers.py — Phase 4 AI Provider Management & Diagnostic Routes
+"""
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, status
+from pydantic import BaseModel, Field
+
+from app.core.config import settings
+from app.core.calling.providers.factory import ProviderFactory
 from app.core.providers.registries import MasterProviderRegistry
 from app.core.tools.registry import ToolRegistry
 from app.agents.registry import AgentRegistry
 
-router = APIRouter(prefix="/system", tags=["System Registries & Architecture"])
+router = APIRouter(prefix="/providers", tags=["AI Provider Management (Phase 4)"])
+system_router = APIRouter(prefix="/system", tags=["System Registries & Architecture"])
 
 
-@router.get(
+class ProviderTestRequest(BaseModel):
+    provider_type: str = Field("all", example="telephony")  # telephony | stt | tts | llm | all
+
+
+@router.get("/status", status_code=status.HTTP_200_OK)
+def get_provider_status():
+    """Get status of all configured AI Call pipeline providers (Telephony, STT, TTS, LLM)."""
+    return ProviderFactory.get_all_provider_status()
+
+
+@router.get("/config", status_code=status.HTTP_200_OK)
+def get_provider_config():
+    """Get current provider settings, live mode safety flags, and cost limits."""
+    return {
+        "calling_provider": settings.CALLING_PROVIDER,
+        "stt_provider": settings.STT_PROVIDER,
+        "tts_provider": settings.TTS_PROVIDER,
+        "llm_provider": settings.LLM_PROVIDER,
+        "live_mode": settings.LIVE_MODE,
+        "allowed_test_numbers": settings.get_allowed_test_numbers(),
+        "cost_limits": {
+            "max_call_duration": settings.MAX_CALL_DURATION,
+            "max_llm_cost": settings.MAX_LLM_COST,
+            "max_stt_cost": settings.MAX_STT_COST,
+            "max_tts_cost": settings.MAX_TTS_COST,
+            "max_total_call_cost": settings.MAX_TOTAL_CALL_COST,
+        },
+        "credentials_configured": {
+            "twilio": bool(settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN),
+            "deepgram": bool(settings.DEEPGRAM_API_KEY),
+            "elevenlabs": bool(settings.ELEVENLABS_API_KEY),
+            "gemini": bool(settings.GEMINI_API_KEY),
+            "openai": bool(settings.OPENAI_API_KEY),
+        },
+    }
+
+
+@router.post("/test", status_code=status.HTTP_200_OK)
+def test_provider_connection(req: ProviderTestRequest):
+    """Test connection and authentication to configured providers without dialing real customers."""
+    target = req.provider_type.lower()
+    results = {}
+
+    if target in ("telephony", "all"):
+        tel_prov, info = ProviderFactory.get_telephony_provider()
+        results["telephony"] = {
+            "status": "healthy" if info["healthy"] else "error",
+            "provider": info["provider"],
+            "fallback_active": info.get("fallback_active", False),
+            "message": "Telephony provider connection test passed.",
+        }
+
+    if target in ("stt", "all"):
+        stt_prov, info = ProviderFactory.get_stt_provider()
+        results["stt"] = {
+            "status": "healthy" if info["healthy"] else "error",
+            "provider": info["provider"],
+            "fallback_active": info.get("fallback_active", False),
+            "message": "STT provider connection test passed.",
+        }
+
+    if target in ("tts", "all"):
+        tts_prov, info = ProviderFactory.get_tts_provider()
+        results["tts"] = {
+            "status": "healthy" if info["healthy"] else "error",
+            "provider": info["provider"],
+            "fallback_active": info.get("fallback_active", False),
+            "message": "TTS provider connection test passed.",
+        }
+
+    if target in ("llm", "all"):
+        llm_prov, info = ProviderFactory.get_decision_provider()
+        results["llm"] = {
+            "status": "healthy" if info["healthy"] else "error",
+            "provider": info["provider"],
+            "fallback_active": info.get("fallback_active", False),
+            "message": "LLM decision provider connection test passed.",
+        }
+
+    return {"tested_target": target, "results": results}
+
+
+class TTSSynthesizeRequest(BaseModel):
+    text: str = Field(..., example="Dạ em chào anh/chị ạ!")
+    voice_id: Optional[str] = Field(None, example="vi-VN-HoaiMyNeural")
+
+
+@router.post("/tts/synthesize", status_code=status.HTTP_200_OK)
+def synthesize_tts(req: TTSSynthesizeRequest):
+    """Synthesize text using the active configured TTS provider (Edge-TTS) and return real MP3 audio."""
+    tts_prov, info = ProviderFactory.get_tts_provider()
+    result = tts_prov.synthesize(req.text, voice_id=req.voice_id)
+    return result
+
+
+# ── System Registries Endpoints (Phase 1 Architecture Preservation) ──────────
+
+@system_router.get(
     "/providers",
     status_code=status.HTTP_200_OK,
     summary="List Registered Vendor Providers Across All Domains",
 )
-async def list_providers():
-    """
-    Retrieves all master provider abstractions (LLM, Media, Voice, Search, Ad Platforms, E-commerce, Automation).
-    """
+def list_providers():
     return MasterProviderRegistry.get_supported_providers()
 
 
-@router.get(
+@system_router.get(
     "/tools",
     status_code=status.HTTP_200_OK,
     summary="List Registered Tools in ToolRegistry",
 )
-async def list_tools():
-    """
-    Retrieves all registered tools grouped by category.
-    """
+def list_tools():
     return ToolRegistry.list_all_tools()
 
 
-@router.get(
+@system_router.get(
     "/agents",
     status_code=status.HTTP_200_OK,
     summary="List Registered Agents in AgentRegistry",
 )
-async def list_agents():
-    """
-    Retrieves all registered AI Agents in AIMOS with their domain and status.
-    """
+def list_agents():
     return AgentRegistry.list_all_agents()

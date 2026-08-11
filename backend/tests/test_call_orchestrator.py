@@ -30,7 +30,7 @@ def test_process_turn(orchestrator):
     res = orchestrator.process_turn(record.call_id, "Anh đang tìm căn hộ 2 phòng ngủ.")
 
     assert res.ai_text is not None
-    assert res.tts_payload["audio_format"] == "wav"
+    assert res.tts_payload["audio_format"] in ("mp3", "wav")
     assert record.session.turn_count == 2  # 1 customer + 1 agent
     assert record.state == CallState.QUALIFYING
 
