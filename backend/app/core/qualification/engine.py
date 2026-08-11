@@ -136,8 +136,11 @@ class QualificationEngine:
             "timeline": extracted_info.get("timeline") or "UNKNOWN",
             "financing": extracted_info.get("financing") or "UNKNOWN",
             "purpose": need_result["customer_need"],
+            "purpose_evidence": need_result.get("evidence"),
+            # purchase_intent reflects score classification, NOT an appointment agreement
             "purchase_intent": "HIGH" if scoring_result["classification"] == "HOT" else "MEDIUM" if scoring_result["classification"] == "WARM" else "LOW",
-            "appointment_intent": "ACCEPTED" if scoring_result["classification"] == "HOT" else "PENDING",
+            # appointment_intent is UNKNOWN unless customer explicitly agreed to an appointment
+            "appointment_intent": "UNKNOWN",
             "pain_points": pain_result["pain_points"],
             "objections": objection_result["objections"],
             "qualification_score": scoring_result["score"],
@@ -292,12 +295,29 @@ class QualificationEngine:
             }
 
     def _detect_need(self, full_text_lower: str) -> Dict[str, Any]:
-        if "cho thuê" in full_text_lower or "đầu tư" in full_text_lower:
-            return {"customer_need": "Mua đầu tư tích sản / cho thuê nhận dòng tiền"}
-        elif "ở" in full_text_lower or "gia đình" in full_text_lower or "2 phòng ngủ" in full_text_lower:
-            return {"customer_need": "Tìm mua căn hộ ở thực cho gia đình"}
+        """
+        Chỉ xác định purpose khi khách hàng nói TRỰC TIẾP.
+        KHÔNG suy diễn purpose từ product type (ví dụ: 2 phòng ngủ ≠ ở thực).
+        KHÔNG suy diễn purpose từ số phòng ngủ hay loại bất động sản.
+        """
+        # Evidence rõ ràng: khách nói "để ở", "ở thực", "ở cùng gia đình"
+        if any(k in full_text_lower for k in ["để ở", "ở thực", "ở cùng", "cho gia đình ở", "nhà ở"]):
+            return {
+                "customer_need": "Mua để ở thực",
+                "evidence": "Khách hàng phát biểu trực tiếp mục đích ở thực",
+            }
+        # Evidence rõ ràng: khách nói "đầu tư", "cho thuê", "sinh lời"
+        elif any(k in full_text_lower for k in ["cho thuê", "đầu tư", "sinh lời", "dòng tiền"]):
+            return {
+                "customer_need": "Mua đầu tư / cho thuê sinh lời",
+                "evidence": "Khách hàng phát biểu trực tiếp mục đích đầu tư hoặc cho thuê",
+            }
         else:
-            return {"customer_need": "Tìm hiểu thông tin giải pháp sản phẩm"}
+            # Không có evidence → UNKNOWN, tuyệt đối không suy diễn
+            return {
+                "customer_need": "UNKNOWN",
+                "evidence": None,
+            }
 
     def _detect_pain_points(self, full_text_lower: str) -> Dict[str, Any]:
         pains = []
@@ -373,7 +393,10 @@ class QualificationEngine:
                 "score": 0.0,
                 "confidence": 0.99,
                 "classification": "INVALID",
-                "reasoning": ["Khách nhầm số hoặc từ chối dứt khoát."],
+                "reasoning": [
+                    "Khách nhầm số hoặc từ chối dứt khoát.",
+                    "Tổng điểm = 0",
+                ],
                 "positive_signals": [],
                 "negative_signals": ["REJECT intent detected"],
                 "risks": ["Số điện thoại rác hoặc khách không cho phép liên hệ"],
@@ -383,33 +406,46 @@ class QualificationEngine:
                 "score": 50.0,
                 "confidence": 0.90,
                 "classification": "WARM",
-                "reasoning": ["Khách đang bận việc, cần đặt lịch hẹn gọi lại."],
+                "reasoning": [
+                    "Khách đang bận việc, cần đặt lịch hẹn gọi lại.",
+                    "Tổng điểm = 50",
+                ],
                 "positive_signals": ["Khách nghe máy và phản hồi lịch sự"],
                 "negative_signals": ["Khách chưa thể trao đổi chi tiết"],
                 "risks": ["Chưa rõ nhu cầu thực sự"],
             }
 
-        score = 30.0  # Base score
-        reasoning = []
+        BASE_SCORE = 30.0
+        score = BASE_SCORE
+        reasoning = [f"Điểm cơ sở (base score) = +{BASE_SCORE:.0f}đ"]
         positive_signals = []
         negative_signals = []
+        score_adjustments = [BASE_SCORE]  # Track every adjustment for consistency check
 
         if intent in ("BUY", "INVEST"):
-            score += 30.0
-            reasoning.append("Ý định mua hàng/đầu tư rõ ràng (+30đ)")
+            adj = 30.0
+            score += adj
+            score_adjustments.append(adj)
+            reasoning.append(f"Ý định mua hàng/đầu tư rõ ràng (+{adj:.0f}đ)")
             positive_signals.append("High Purchase Intent")
         elif intent == "INQUIRE":
-            score += 10.0
-            reasoning.append("Khách tìm hiểu thông tin sơ bộ (+10đ)")
+            adj = 10.0
+            score += adj
+            score_adjustments.append(adj)
+            reasoning.append(f"Khách tìm hiểu thông tin sơ bộ (+{adj:.0f}đ)")
             positive_signals.append("Inquiry Intent")
         elif intent == "BROWSING":
-            score -= 10.0
-            reasoning.append("Khách chỉ xem khảo sát (-10đ)")
+            adj = -10.0
+            score += adj
+            score_adjustments.append(adj)
+            reasoning.append(f"Khách chỉ xem khảo sát ({adj:.0f}đ)")
             negative_signals.append("Low Purchase Intent")
 
         if extracted_info.get("budget"):
-            score += 25.0
-            reasoning.append(f"Cung cấp ngân sách rõ ràng {extracted_info['budget']} (+25đ)")
+            adj = 25.0
+            score += adj
+            score_adjustments.append(adj)
+            reasoning.append(f"Cung cấp ngân sách rõ ràng {extracted_info['budget']} (+{adj:.0f}đ)")
             positive_signals.append("Clear Budget")
         else:
             negative_signals.append("Missing Budget")
@@ -417,20 +453,30 @@ class QualificationEngine:
         timeline_str = extracted_info.get("timeline", "")
         if timeline_str:
             if "chưa vội" in timeline_str.lower():
-                score -= 15.0
-                reasoning.append("Khung thời gian mua không gấp / chưa vội mua (-15đ)")
+                adj = -15.0
+                score += adj
+                score_adjustments.append(adj)
+                reasoning.append(f"Khung thời gian mua không gấp / chưa vội mua ({adj:.0f}đ)")
                 negative_signals.append("Non-Urgent Timeline")
             else:
-                score += 15.0
-                reasoning.append(f"Có khung thời gian mua sắm {timeline_str} (+15đ)")
+                adj = 15.0
+                score += adj
+                score_adjustments.append(adj)
+                reasoning.append(f"Có khung thời gian mua sắm {timeline_str} (+{adj:.0f}đ)")
                 positive_signals.append("Clear Timeline")
 
         if contradiction_result["has_contradiction"]:
-            score -= 25.0
-            reasoning.append("Phát hiện dữ liệu mâu thuẫn về ngân sách (-25đ)")
+            adj = -25.0
+            score += adj
+            score_adjustments.append(adj)
+            reasoning.append(f"Phát hiện dữ liệu mâu thuẫn về ngân sách ({adj:.0f}đ)")
             negative_signals.append("Data Contradiction Detected")
 
-        final_score = round(max(0.0, min(100.0, score)), 1)
+        # Score must exactly equal sum of all tracked adjustments
+        expected_score = sum(score_adjustments)
+        final_score = round(max(0.0, min(100.0, expected_score)), 1)
+        # Append final tally to reasoning for full transparency
+        reasoning.append(f"Tổng điểm = {' + '.join(str(int(a)) if a >= 0 else str(int(a)) for a in score_adjustments)} = {final_score:.0f}")
 
         # Classification thresholds
         if contradiction_result["has_contradiction"]:

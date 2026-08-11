@@ -143,3 +143,182 @@ def test_6_manual_swagger_cases():
         "conversation": [{"speaker": "CUSTOMER", "text": "Không phải tôi đăng ký số này."}]
     }).json()
     assert c6["classification"] == "INVALID"
+
+
+# ====================================================================
+# VALIDATION PHASE 2 ADDITIONAL TESTS — Anti-Hallucination & Score Consistency
+# ====================================================================
+
+def test_minimal_evidence_no_hallucination():
+    """
+    TEST A: Chỉ cung cấp product + budget.
+    Tất cả các field không được suy diễn (purpose, location, timeline, financing, appointment_intent)
+    phải là UNKNOWN/null.
+    """
+    engine = QualificationEngine()
+    res = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh đang tìm căn hộ 2 phòng ngủ, ngân sách khoảng 3 tỷ."}
+        ]
+    )
+    q = res["qualification"]
+
+    # Thông tin CÓ evidence trực tiếp
+    assert q["product_interest"] == "Căn hộ 2 Phòng Ngủ", "product_interest phải được extract từ conversation"
+    assert "3" in q["budget"] and "VND" in q["budget"], "budget phải được extract từ conversation"
+
+    # Thông tin KHÔNG CÓ evidence → phải UNKNOWN
+    assert q["purpose"] == "UNKNOWN", f"purpose phải UNKNOWN khi khách chưa nói mục đích, got: {q['purpose']}"
+    assert q["location"] == "UNKNOWN", f"location phải UNKNOWN, got: {q['location']}"
+    assert q["timeline"] == "UNKNOWN", f"timeline phải UNKNOWN, got: {q['timeline']}"
+    assert q["financing"] == "UNKNOWN", f"financing phải UNKNOWN, got: {q['financing']}"
+    assert q["appointment_intent"] == "UNKNOWN", f"appointment_intent phải UNKNOWN khi chưa có agreement, got: {q['appointment_intent']}"
+
+
+def test_explicit_purpose_evidence():
+    """
+    TEST B: purpose chỉ được xác định khi có evidence tường minh từ khách hàng.
+    """
+    engine = QualificationEngine()
+
+    # Có evidence "để ở" → purpose được xác định
+    res_with_evidence = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh mua căn 2 phòng ngủ để ở cùng gia đình."}
+        ]
+    )
+    q = res_with_evidence["qualification"]
+    assert q["purpose"] != "UNKNOWN", "purpose phải được detect khi khách nói 'để ở'"
+    assert q["purpose_evidence"] is not None, "purpose_evidence phải có giá trị khi có evidence"
+
+    # Không có evidence → UNKNOWN
+    res_without = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh đang tìm căn hộ 2 phòng ngủ, ngân sách khoảng 3 tỷ."}
+        ]
+    )
+    q2 = res_without["qualification"]
+    assert q2["purpose"] == "UNKNOWN", f"purpose phải UNKNOWN khi không có evidence mục đích, got: {q2['purpose']}"
+    assert q2["purpose_evidence"] is None, "purpose_evidence phải None khi không có evidence"
+
+
+def test_appointment_intent_never_assumed():
+    """
+    TEST C: appointment_intent phải là UNKNOWN cho đến khi khách đồng ý rõ ràng.
+    Kể cả HOT lead cũng không được tự set ACCEPTED.
+    """
+    engine = QualificationEngine()
+
+    # HOT lead — vẫn phải UNKNOWN cho appointment
+    hot_res = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh đang tìm căn 2 phòng ngủ khoảng 3 tỷ, cuối tháng muốn mua."}
+        ]
+    )
+    assert hot_res["classification"] == "HOT", "Scenario này phải là HOT"
+    q = hot_res["qualification"]
+    assert q["appointment_intent"] == "UNKNOWN", (
+        f"appointment_intent phải UNKNOWN cho HOT lead chưa đồng ý lịch hẹn, got: {q['appointment_intent']}"
+    )
+
+    # WARM lead — cũng phải UNKNOWN
+    warm_res = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[{"speaker": "CUSTOMER", "text": "Anh đang bận, lúc khác gọi lại."}]
+    )
+    q2 = warm_res["qualification"]
+    assert q2["appointment_intent"] == "UNKNOWN", (
+        f"appointment_intent phải UNKNOWN cho BUSY/WARM lead, got: {q2['appointment_intent']}"
+    )
+
+
+def test_score_reasoning_consistency():
+    """
+    TEST D & E: Kiểm tra score calculation nhất quán với reasoning.
+    Tổng các giá trị điều chỉnh trong reasoning phải khớp final score.
+    """
+    engine = QualificationEngine()
+
+    test_cases = [
+        # (description, conversation_text)
+        ("HOT với budget + timeline", "Anh tìm căn 2 phòng ngủ 3 tỷ, cuối tháng mua."),
+        ("WARM BUSY", "Anh đang bận họp."),
+        ("COLD BROWSING", "Anh chỉ xem cho biết thôi."),
+        ("Có mâu thuẫn budget", "Anh có 3 tỷ. Thực ra chỉ có 1.5 tỷ."),
+        ("Thiếu nhiều thông tin", "Anh tìm nhà."),
+    ]
+
+    for desc, text in test_cases:
+        res = engine.process(
+            lead_data={"phone": "+84901234567"},
+            conversation=[{"speaker": "CUSTOMER", "text": text}]
+        )
+        score_obj = res["score"]
+        final_score = score_obj["score"]
+        reasoning_list = score_obj["reasoning"]
+
+        # Kiểm tra reasoning có "Tổng điểm" dòng tổng kết
+        tally_lines = [r for r in reasoning_list if "Tổng điểm" in r]
+        assert len(tally_lines) == 1, (
+            f"[{desc}] Phải có đúng 1 dòng 'Tổng điểm' trong reasoning, got: {reasoning_list}"
+        )
+
+        # Parse tổng điểm từ dòng tổng kết
+        tally_str = tally_lines[0]
+        # Format: "Tổng điểm = 30 + 30 + 25 + 15 = 100"
+        parts = tally_str.split("=")
+        assert len(parts) >= 2, f"[{desc}] Dòng tổng kết format không hợp lệ: {tally_str}"
+        declared_total = float(parts[-1].strip())
+        assert declared_total == final_score, (
+            f"[{desc}] Tổng điểm trong reasoning ({declared_total}) KHÔNG khớp final_score ({final_score})"
+        )
+
+
+def test_score_no_hardcoded_mismatch():
+    """
+    TEST D bổ sung: Kiểm tra cụ thể case "2 phòng ngủ + 3 tỷ" không có qualification_score = 85 sai.
+    Base=30 + Intent_BUY=30 + Budget=25 = 85, KHÔNG có timeline nên không +15.
+    """
+    engine = QualificationEngine()
+    res = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh đang tìm căn hộ 2 phòng ngủ, ngân sách khoảng 3 tỷ."}
+        ]
+    )
+    score = res["score"]["score"]
+    # Base 30 + BUY 30 + Budget 25 = 85 (no timeline → no +15)
+    assert score == 85.0, f"Expected score=85.0 (30+30+25), got {score}"
+
+    reasoning = res["score"]["reasoning"]
+    # Tất cả adjustment phải xuất hiện trong reasoning
+    reasoning_text = " ".join(reasoning)
+    assert "30" in reasoning_text and "25" in reasoning_text, (
+        f"Reasoning thiếu các adjustment: {reasoning}"
+    )
+
+    # Tổng điểm trong tally line phải khớp
+    tally = [r for r in reasoning if "Tổng điểm" in r]
+    assert len(tally) == 1
+    declared = float(tally[0].split("=")[-1].strip())
+    assert declared == score, f"Score declared in tally ({declared}) != final_score ({score})"
+
+
+def test_investment_purpose_explicit():
+    """
+    TEST B phụ: Purpose đầu tư chỉ được detect khi có từ khóa đầu tư/cho thuê tường minh.
+    """
+    engine = QualificationEngine()
+    res = engine.process(
+        lead_data={"phone": "+84901234567"},
+        conversation=[
+            {"speaker": "CUSTOMER", "text": "Anh muốn mua để đầu tư, cho thuê kiếm dòng tiền."}
+        ]
+    )
+    q = res["qualification"]
+    assert q["purpose"] != "UNKNOWN", "purpose phải detect được khi có từ khóa đầu tư/cho thuê"
+    assert "đầu tư" in q["purpose"].lower() or "cho thuê" in q["purpose"].lower()
