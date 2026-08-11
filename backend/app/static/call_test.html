@@ -528,13 +528,16 @@
 
         let currentAudioPlayer = null;
 
+        async function computeSHA256(arrayBuffer) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         async function speakText(text, audioBase64 = null) {
             if (currentAudioPlayer) {
                 currentAudioPlayer.pause();
                 currentAudioPlayer = null;
-            }
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
             }
 
             let b64 = audioBase64;
@@ -554,18 +557,43 @@
 
             if (b64) {
                 try {
-                    const audio = new Audio(`data:audio/mp3;base64,${b64}`);
+                    // Requirement 9: Convert Base64 to Binary ArrayBuffer & Blob URL
+                    const binaryString = atob(b64);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+
+                    const audioSha256 = await computeSHA256(bytes.buffer);
+
+                    // Requirement 7: Frontend Diagnostic Log
+                    console.log(
+                        `[FRONTEND AUDIO PLAY]\n` +
+                        `source=EdgeTTSProvider Base64 -> Blob URL\n` +
+                        `mime=audio/mpeg\n` +
+                        `byte_length=${len}\n` +
+                        `sha256=${audioSha256}`
+                    );
+
+                    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    const audio = new Audio(blobUrl);
                     currentAudioPlayer = audio;
                     document.getElementById('waveBox').classList.add('active');
+
                     audio.onended = () => {
                         document.getElementById('waveBox').classList.remove('active');
+                        URL.revokeObjectURL(blobUrl);
                     };
                     audio.onerror = () => {
                         document.getElementById('waveBox').classList.remove('active');
+                        URL.revokeObjectURL(blobUrl);
                     };
                     await audio.play();
                 } catch (err) {
-                    console.error('Error playing Edge-TTS audio player:', err);
+                    console.error('Error playing Edge-TTS audio Blob:', err);
                     document.getElementById('waveBox').classList.remove('active');
                 }
             } else {

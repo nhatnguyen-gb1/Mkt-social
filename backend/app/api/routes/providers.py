@@ -110,6 +110,25 @@ def synthesize_tts(req: TTSSynthesizeRequest):
     return result
 
 
+class TTSTestRequest(BaseModel):
+    text: str = Field(..., example="Dạ em chào anh/chị ạ. Em gọi từ bộ phận tư vấn dự án bất động sản AIMOS.")
+
+
+@router.post("/tts/test", status_code=status.HTTP_200_OK)
+def test_tts_endpoint(req: TTSTestRequest):
+    """Simple TTS test endpoint per requirement 4."""
+    tts_prov, info = ProviderFactory.get_tts_provider()
+    res = tts_prov.synthesize(req.text)
+    return {
+        "provider": res.get("provider", "edge_tts"),
+        "voice": res.get("voice_id", "vi-VN-HoaiMyNeural"),
+        "format": res.get("audio_format", "mp3"),
+        "audio_base64": res.get("audio_base64"),
+        "audio_size_bytes": res.get("audio_size_bytes", res.get("audio_bytes_length", 0)),
+        "audio_sha256": res.get("audio_sha256"),
+    }
+
+
 # ── System Registries Endpoints (Phase 1 Architecture Preservation) ──────────
 
 @system_router.get(

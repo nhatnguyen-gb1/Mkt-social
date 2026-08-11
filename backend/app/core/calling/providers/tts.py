@@ -184,6 +184,8 @@ class EdgeTTSProvider(TTSProvider):
             else:
                 audio_bytes = asyncio.run(_synth())
 
+            import hashlib
+            audio_sha256 = hashlib.sha256(audio_bytes).hexdigest()
             elapsed = time.time() - start_time
             audio_base64 = base64.b64encode(audio_bytes).decode("ascii")
 
@@ -198,14 +200,20 @@ class EdgeTTSProvider(TTSProvider):
                 "audio_format": "mp3",
                 "sample_rate": 24000,
                 "audio_bytes_length": len(audio_bytes),
+                "audio_size_bytes": len(audio_bytes),
+                "audio_sha256": audio_sha256,
                 "audio_base64": audio_base64,
                 "latency_seconds": round(elapsed, 2),
                 "fallback_active": False,
                 "fallback_provider": None,
             }
             logger.info(
-                f"[TTS DIAGNOSTIC - EDGE NEURAL REAL] Provider: edge_tts | Voice: {target_voice} | "
-                f"Lang: {self.language_code} | Bytes: {len(audio_bytes)} | Latency: {elapsed:.2f}s"
+                f"[TTS FINAL OUTPUT]\n"
+                f"provider=edge_tts\n"
+                f"voice={target_voice}\n"
+                f"format=mp3\n"
+                f"audio_size={len(audio_bytes)}\n"
+                f"audio_sha256={audio_sha256}"
             )
             return result
 
